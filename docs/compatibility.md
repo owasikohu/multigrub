@@ -1,5 +1,7 @@
 # Generic extraction互換性レポート
 
+追加8本（非Linuxを含む）の結果と比較起動は [iso-matrix.md](iso-matrix.md) を参照してください。下記のDebian Live/Ubuntu 24.04と、新たに試したmini ISOは別の媒体です。
+
 方式はISO → FAT32 scratchへ全ファイル展開 → scratchの `/EFI/BOOT/BOOTX64.EFI` を既存chainloaderで起動、のままです。GRUB coreへのpatch、ディストリ固有handler、kernel引数変更、initramfs hook、ISO用の仮想CD-ROM・仮想Block Deviceは追加していません。
 
 ## 実装済み機能

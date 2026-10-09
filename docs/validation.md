@@ -58,3 +58,7 @@ USBの標準mount先が `/media/usb` になることを実測し、自動テス�
 可変容量の生成イメージ（DATA 128MiB、SCRATCH 256MiB）でもQEMU bootとUEFI scratch書き込み・ホスト内容比較が成功しました。stock ISOの読み取り専用directoryを残すxorrisoに合わせ、Linuxテストの再実行前に所有する生成物の書き込み権限を戻して清掃します。
 
 変更後の最終 `make test-linux` は終了コード0で成功しました。新規展開からstock AlpineのSATA起動、全120ファイルの比較、USB cache再利用での起動、guestのkernel/cmdline/mount照合、統合assertionまで完了しました。ログは `.build/compat-alpine-final.log`。ほかの6系統は取得段階のHTTP 403のため、OS起動の互換性は未判定です。
+
+## ISOの追加検証
+
+Alpine virt/extended、Talos、Debian 12/13 mini、Ubuntu 18.04 mini、HelenOS、ToaruOSの8本を追加しました。詳細な結果・証拠・再現手順は [iso-matrix.md](iso-matrix.md)。製品のGRUB moduleには変更を加えていません。

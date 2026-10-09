@@ -4,7 +4,7 @@ UEFI x86_64向けの最小GRUBマルチブート試作です。ISOをDATAに保�
 
 ISOの読み取りにはGRUBのloopbackとfilesystem API、scratchへの書き込みにはUEFI Simple File System / File Protocolを使用します。loopbackはGRUB内での読み取りだけに使用します。Linuxのkernel、initramfs、kernel command lineは変更しません。
 
-Alpine 3.22.3 standardの公式ISOで、展開したFAT32から変更のないEFI・kernel・initramfsを経由してLinuxのログインまで確認しました。今回の追加チェックと実ISO一覧は [互換性レポート](docs/compatibility.md)。詳しい実行結果は [検証記録](docs/validation.md)、設計調査は [design.md](docs/design.md) を参照してください。
+Alpine 3.22.3 standardの公式ISOで、展開したFAT32から変更のないEFI・kernel・initramfsを経由してLinuxのログインまで確認しました。追加8本・非Linuxを含む結果は [実ISO追加検証](docs/iso-matrix.md)。互換性チェックの詳細は [互換性レポート](docs/compatibility.md)。詳しい実行結果は [検証記録](docs/validation.md)、設計調査は [design.md](docs/design.md) を参照してください。
 
 ## 開発と自動テスト
 
@@ -16,6 +16,7 @@ make build      # SHA-256固定のGRUB 2.12ソースをビルドし、独自モ�
 make test       # GPTイメージ生成、QEMU/OVMF実行、シリアル・ホスト側検証
 make test-compat # 展開前チェック、symlink拒否、エラー分類、長いラベル
 make test-linux # 公式Alpine ISO取得、通常接続・USB接続でLinux起動検証
+make test-isos  # 固定checksumの追加8 ISOを検証
 ```
 
 必要な追加パッケージは `qemu-system-x86 ovmf xorriso mtools gdisk dosfstools e2fsprogs bison flex gawk gnu-efi tesseract-ocr tesseract-ocr-eng` です。通常のパッケージ管理で導入済みなら `make deps` を省略できます。`scripts/env.sh` はローカル導入先を優先します。
@@ -46,7 +47,7 @@ scripts/run.sh .build/demo/disk.img --usb
 | p2 DATA | ext4、`/iso/*.iso` | 1GiB |
 | p3 SCRATCH | FAT32、ISO展開先 | 1.5GiB |
 
-DATAは `mkfs.ext4 -O ^extent,^64bit` で作成します。GRUB 2.12のext4 readerは先頭に穴のあるextentファイルでエラーになるため、従来のブロック配置を使います。ISO全体のハッシュもこの配置で検証します。容量は `--data-mib 8192 --scratch-mib 8192` のように指定できます。生成先の `partitions.json` に各パーティションのoffsetと容量を記録します。従来のホスト検証スクリプトは既定のscratch offsetを使用するため、カスタム容量ではこのmetadataに従って検証してください。
+DATAは `mkfs.ext4 -O ^extent,^64bit` で作成します。GRUB 2.12のext4 readerは先頭に穴のあるextentファイルでエラーになるため、従来のブロック配置を使います。ISO全体のハッシュもこの配置で検証します。容量は `--data-mib 8192 --scratch-mib 8192` のように指定できます。生成先の `partitions.json` に各パーティションのoffsetと容量を記録します。ホスト検証の `scripts/verify.py` は `--scratch-offset` でこのmetadataのoffsetを指定できます。
 
 ## GRUBコマンド
 

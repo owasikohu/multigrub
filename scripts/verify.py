@@ -9,8 +9,9 @@ def main():
     p.add_argument('disk',type=pathlib.Path)
     p.add_argument('--tree',type=pathlib.Path,default=ROOT/'.build/fixture')
     p.add_argument('--stage',choices=['write','file','tree'],required=True)
+    p.add_argument('--scratch-offset',type=int,default=PARTS[2][0]*512,help='Byte offset from generated partitions.json for custom-sized images')
     a=p.parse_args()
-    scratch=f'{a.disk}@@{PARTS[2][0]*512}'
+    scratch=f'{a.disk}@@{a.scratch_offset}'
     esp=f'{a.disk}@@{PARTS[0][0]*512}'
     if a.stage=='write':
         got=subprocess.check_output(['mtype','-i',scratch,'::/test.txt'])

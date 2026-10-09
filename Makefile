@@ -1,4 +1,4 @@
-.PHONY: deps build test test-linux test-compat fixture
+.PHONY: deps build test test-linux test-compat test-isos fixture
 deps:
 	./scripts/deps.sh
 build:
@@ -13,3 +13,6 @@ test-linux:
 
 test-compat:
 	./scripts/test-compat.sh
+
+test-isos: build
+	bash -c 'source scripts/env.sh; exec python3 scripts/test-isos.py'
