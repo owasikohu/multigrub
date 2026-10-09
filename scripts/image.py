@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Rootless GPT image construction, without mounts or loop devices."""
-import argparse, pathlib, subprocess, shutil, os, re
+import argparse, pathlib, subprocess, shutil, os, re, json
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BUILD = ROOT / '.build'
 PARTS = [(2048, 131072, 'EF00', 'EFI'), (133120, 2097152, '8300', 'DATA'),
@@ -13,6 +13,8 @@ def main():
     p.add_argument('--iso', type=pathlib.Path, action='append', default=[])
     p.add_argument('--name', default='test')
     p.add_argument('--reuse', action='store_true')
+    p.add_argument('--data-mib', type=int, default=1024)
+    p.add_argument('--scratch-mib', type=int, default=1536)
     a = p.parse_args()
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', a.name):
         p.error('--name must be a simple directory name')
@@ -20,6 +22,10 @@ def main():
         p.error('ISO basenames must be unique')
     if a.reuse and a.iso:
         p.error('--reuse updates only GRUB; omit --iso')
+    if a.data_mib < 64 or a.scratch_mib < 64:
+        p.error('DATA and SCRATCH must each be at least 64 MiB')
+    parts = [PARTS[0], (PARTS[1][0], a.data_mib*2048, '8300', 'DATA'),
+             (PARTS[1][0]+a.data_mib*2048, a.scratch_mib*2048, '0700', 'SCRATCH')]
     out = BUILD / a.name
     out.mkdir(parents=True, exist_ok=True)
     efi = out / 'BOOTX64.EFI'
@@ -33,7 +39,7 @@ def main():
         run('mcopy', '-o', '-i', f'{disk}@@{PARTS[0][0]*512}', efi, '::/EFI/BOOT/BOOTX64.EFI')
         print(disk)
         return
-    for i, (_, sectors, _, label) in enumerate(PARTS, 1):
+    for i, (_, sectors, _, label) in enumerate(parts, 1):
         part = out / f'p{i}.img'
         with part.open('wb') as f: f.truncate(sectors * 512)
         if i == 2:
@@ -52,11 +58,11 @@ def main():
                 marker.write_text('multigrub scratch v1\n')
                 run('mcopy', '-i', part, marker, '::/.multigrub-scratch')
     disk = out/'disk.img'
-    with disk.open('wb') as f: f.truncate(3 * 1024**3)
-    run('sgdisk', '--clear', *[s for i, (start, size, kind, label) in enumerate(PARTS, 1)
+    with disk.open('wb') as f: f.truncate(max(3 * 1024**3, (parts[2][0]+parts[2][1]+2048)*512))
+    run('sgdisk', '--clear', *[s for i, (start, size, kind, label) in enumerate(parts, 1)
         for s in (f'--new={i}:{start}:{start+size-1}', f'--typecode={i}:{kind}', f'--change-name={i}:{label}')], disk)
     with disk.open('r+b') as dest:
-        for i, (start, _, _, _) in enumerate(PARTS, 1):
+        for i, (start, _, _, _) in enumerate(parts, 1):
             with (out/f'p{i}.img').open('rb') as src:
                 base = start * 512
                 end = os.fstat(src.fileno()).st_size
@@ -78,5 +84,8 @@ def main():
                         if not chunk: raise RuntimeError('short partition read')
                         dest.write(chunk)
                     pos = stop
+    (out/'partitions.json').write_text(json.dumps([
+        {'partition': i, 'label': label, 'offset': start*512, 'bytes': size*512}
+        for i, (start,size,kind,label) in enumerate(parts,1)], indent=2)+'\n')
     print(disk)
 if __name__ == '__main__': main()

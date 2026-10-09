@@ -4,6 +4,7 @@
 #include <grub/device.h>
 struct iso { grub_device_t dev; grub_fs_t fs; };
 #include "label.c"
+#include "compat.c"
 static grub_err_t iso_open (const char *path,struct iso *iso) {
   char *args[2]={(char*)"bootiso_loop",(char*)path};
   grub_memset(iso,0,sizeof(*iso));
@@ -82,7 +83,7 @@ static grub_err_t copy_iso_file (bi_file *root,const char *src,const char *dest,
   input=grub_file_open(full,GRUB_FILE_TYPE_NONE|GRUB_FILE_TYPE_NO_DECOMPRESS);
   grub_free(full);
   if(!input) return grub_errno;
-  if(input->size>0xffffffffULL) {grub_file_close(input);return grub_error(GRUB_ERR_OUT_OF_RANGE,"file exceeds FAT32 limit: %s",src);}
+  if(input->size>0xffffffffULL) {grub_uint64_t size=input->size;grub_file_close(input);return too_large(src,size);}
   if(exclusive) {
     bi_file *exists=0;
     bi_status status=open_file(root,dest,BI_READ,0,&exists);
@@ -183,7 +184,7 @@ static int walk_hook (const char *name,const struct grub_dirhook_info *info,void
     grub_free(full);
     if(!file) ctx->err=grub_errno;
     else {
-      if(file->size>0xffffffffULL) ctx->err=grub_error(GRUB_ERR_OUT_OF_RANGE,"file exceeds FAT32: %s",path);
+      if(file->size>0xffffffffULL) ctx->err=too_large(path,file->size);
       else *ctx->bytes+=file->size;
       grub_file_close(file);
     }
@@ -212,7 +213,7 @@ static grub_err_t extract_file_cmd (grub_command_t cmd __attribute__((unused)),i
   if(!err) grub_printf("[bootiso] file copy success\n");
   return err;
 }
-static grub_err_t extract_iso_cmd (grub_command_t cmd __attribute__((unused)),int argc,char **args) {
+static grub_err_t extract_iso_inner (grub_command_t cmd __attribute__((unused)),int argc,char **args) {
   struct iso iso;
   struct scratch s;
   grub_err_t err;
@@ -221,7 +222,8 @@ static grub_err_t extract_iso_cmd (grub_command_t cmd __attribute__((unused)),in
   grub_uint64_t bytes=0;
   struct walk ctx={&iso,0,"/",0,&bytes,&count,0};
   if(argc!=1) return grub_error(GRUB_ERR_BAD_ARGUMENT,"extract_iso ISO");
-  key=cache_key(args[0]);if(!key) return grub_errno;
+  failure_code=0;
+  key=cache_key(args[0]);if(!key) return classified("EXTRACTION_FAILED",grub_errno,"cannot fingerprint ISO");
   if(scratch_open(&s)) {grub_free(key);return grub_errno;}
   if(cache_matches(s.root,key)) {
     grub_printf("[bootiso] cache hit; reusing scratch\n");
@@ -230,6 +232,8 @@ static grub_err_t extract_iso_cmd (grub_command_t cmd __attribute__((unused)),in
   if(grub_errno) {scratch_close(&s);grub_free(key);return grub_errno;}
   grub_printf("[bootiso] cache miss\n");
   err=iso_open(args[0],&iso);
+  if(!err) err=check_loader(&iso);
+  if(!err) err=check_symlinks(&iso);
   if(!err) err=walk_dir(&ctx);
   if(!err) err=check_capacity(s.root,bytes,count,0);
   if(!err) err=invalidate_cache(s.root);
@@ -241,8 +245,22 @@ static grub_err_t extract_iso_cmd (grub_command_t cmd __attribute__((unused)),in
     err=put_text(s.root,BI_CACHE,key);
     if(!err) grub_printf("[bootiso] cache committed\n");
   }
-  if(err) grub_printf("[bootiso] extraction failed: %s\n",grub_errmsg);
+  if(err) {
+    if(!failure_code) failure_code="EXTRACTION_FAILED";
+    grub_printf("[bootiso] %s: %s\n",failure_code,grub_errmsg);
+  }
   iso_close(&iso);scratch_close(&s);grub_free(key);
   if(!err) grub_printf("[bootiso] extracted %u entries\n",count);
+  return err;
+}
+
+static grub_err_t extract_iso_cmd (grub_command_t cmd,int argc,char **args) {
+  grub_err_t err;
+  failure_code=0;
+  err=extract_iso_inner(cmd,argc,args);
+  if(err && !failure_code) {
+    failure_code="EXTRACTION_FAILED";
+    grub_printf("[bootiso] EXTRACTION_FAILED: %s\n",grub_errmsg);
+  }
   return err;
 }

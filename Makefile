@@ -1,4 +1,4 @@
-.PHONY: deps build test test-linux fixture
+.PHONY: deps build test test-linux test-compat fixture
 deps:
 	./scripts/deps.sh
 build:
@@ -10,3 +10,6 @@ test:
 
 test-linux:
 	./scripts/test-linux.sh
+
+test-compat:
+	./scripts/test-compat.sh

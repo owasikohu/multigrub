@@ -4,6 +4,8 @@ set -euo pipefail
 source "$(dirname "$0")/env.sh"
 "$ROOT/scripts/build.sh"
 "$ROOT/scripts/fixture.sh"
+mkdir -p "$BUILD/conflict/EFI/BOOT"
+cp "$BUILD/fixture/EFI/BOOT/BOOTX64.EFI" "$BUILD/conflict/EFI/BOOT/BOOTX64.EFI"
 mkdir -p "$BUILD/conflict" "$BUILD/logs"
 printf 'first\n' > "$BUILD/conflict/name.txt"
 printf 'second\n' > "$BUILD/conflict/NAME.TXT"

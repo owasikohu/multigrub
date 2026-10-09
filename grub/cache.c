@@ -40,7 +40,7 @@ static char *cache_key (const char *path) {
     md->final(ctx);digest=md->read(ctx);
     for(i=0;i<32;i++) grub_snprintf(hex+2*i,3,"%02x",digest[i]);
     hex[64]=0;
-    key=grub_xasprintf("bootiso-cache-v1\npath=%s\nsize=%llu\nmtime=%s%lld\nsha256=%s\n",path,
+    key=grub_xasprintf("bootiso-cache-v2\npath=%s\nsize=%llu\nmtime=%s%lld\nsha256=%s\n",path,
         (unsigned long long)size,t.found?"":"unknown:",(long long)t.mtime,hex);
   } else if(got>=0) grub_error(GRUB_ERR_IO,"short ISO read during hashing");
   grub_free(ctx);grub_free(buffer);grub_file_close(file);return key;

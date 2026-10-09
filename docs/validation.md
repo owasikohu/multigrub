@@ -46,3 +46,15 @@ Volume ID `alpine-std 3.22.3 x86_64` はFATの制限により反映できず、s
 USBの標準mount先が `/media/usb` になることを実測し、自動テストのmount先判定を接続方式に合わせて修正しました。Linux側の変更は不要でした。
 
 最終結果：通常接続の新規展開とUSB接続のcache再利用がともにLinux user spaceまで成功しました。USBの判定修正後はUSB段階を再実行して終了コード0を確認し、統合assertionと全ファイルのホスト比較を再実行して成功しました。通常接続の成功ログは保持しています。
+
+## 追加互換性チェック
+
+展開方式を維持してEFI存在・4GiB超・Rock Ridge symlinkのpreflightとエラー分類を追加しました。詳細な実ISOの結果と実機項目は [compatibility.md](compatibility.md) にまとめています。
+
+`make test` の再実行は終了コード0。`make test-compat` の最終再実行も終了コード0で、missing EFI、4GiB超の宣言サイズ、file/directory/dangling/cycle/continuation symlink、無効EFI、戻るEFI、長いVolume ID、小文字EFI pathを検証しました。preflight拒否では既存scratchのsentinelが残りました。ログは `.build/compat-regression-final.log` と `.build/compat-test-final.log`、ケース別ログは `.build/compatibility/*.log`。
+
+`.build/console-test.log` は `NO_EFI_LOADER` のserial/VGA両方での表示を確認して終了コード0。画面は `.build/console-validation/console-check/screen.ppm`、OCR結果は同ディレクトリの `screen.txt` です。`scripts/test-console.py DISK --expect CODE` は、このような診断を表示したまま待つGRUB設定のイメージに対して再実行できます。
+
+可変容量の生成イメージ（DATA 128MiB、SCRATCH 256MiB）でもQEMU bootとUEFI scratch書き込み・ホスト内容比較が成功しました。stock ISOの読み取り専用directoryを残すxorrisoに合わせ、Linuxテストの再実行前に所有する生成物の書き込み権限を戻して清掃します。
+
+変更後の最終 `make test-linux` は終了コード0で成功しました。新規展開からstock AlpineのSATA起動、全120ファイルの比較、USB cache再利用での起動、guestのkernel/cmdline/mount照合、統合assertionまで完了しました。ログは `.build/compat-alpine-final.log`。ほかの6系統は取得段階のHTTP 403のため、OS起動の互換性は未判定です。

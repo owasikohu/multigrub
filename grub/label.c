@@ -5,7 +5,7 @@ static grub_err_t copy_volume_label (struct iso *iso,bi_file *root) {
   grub_size_t i,len;
   bi_status status;
   if(!iso->fs->fs_label) {grub_printf("[bootiso] no volume label API\n");return GRUB_ERR_NONE;}
-  if(iso->fs->fs_label(iso->dev,&label)) return grub_errno;
+  if(iso->fs->fs_label(iso->dev,&label)) {grub_printf("[bootiso] WARNING: cannot read Volume ID: %s\n",grub_errmsg);grub_free(label);grub_errno=GRUB_ERR_NONE;return GRUB_ERR_NONE;}
   if(!label) return GRUB_ERR_NONE;
   grub_printf("[bootiso] ISO Volume ID: %s\n",label);
   len=grub_strlen(label);
@@ -27,8 +27,8 @@ static grub_err_t copy_volume_label (struct iso *iso,bi_file *root) {
   text[len]=0;
   status=root->set_info(root,&label_guid,(len+1)*sizeof(text[0]),text);
   grub_free(label);
-  if(status!=GRUB_EFI_SUCCESS) return efi_error("set volume label",status);
+  if(status!=GRUB_EFI_SUCCESS) {grub_printf("[bootiso] WARNING: label SetInfo failed (0x%llx); continuing\n",(unsigned long long)status);return GRUB_ERR_NONE;}
   status=root->flush(root);
-  if(status!=GRUB_EFI_SUCCESS) return efi_error("flush label",status);
+  if(status!=GRUB_EFI_SUCCESS) {grub_printf("[bootiso] WARNING: label flush failed (0x%llx); continuing\n",(unsigned long long)status);return GRUB_ERR_NONE;}
   grub_printf("[bootiso] scratch volume label copied\n");return GRUB_ERR_NONE;
 }

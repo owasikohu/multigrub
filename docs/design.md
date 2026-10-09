@@ -34,7 +34,8 @@ GRUB's disk read cache must be invalidated before it reads firmware-written FAT.
 Extraction preserves names, hierarchy and bytes subject to FAT's restrictions:
 4 GiB maximum file size, case insensitivity, reserved/invalid names, and lack
 of POSIX metadata. GRUB's public directory hook does not expose symlink type;
-Rock Ridge symlinks can be dereferenced by the existing filesystem API.
+The compatibility preflight inspects Rock Ridge SL/CE metadata and rejects
+all ISO-level symlinks explicitly; it does not silently dereference them.
 A recursive directory cycle must be bounded and must not yield a success cache.
 
 This does not guarantee bootability of every Linux ISO. A distro may search for

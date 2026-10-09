@@ -4,7 +4,7 @@ UEFI x86_64向けの最小GRUBマルチブート試作です。ISOをDATAに保�
 
 ISOの読み取りにはGRUBのloopbackとfilesystem API、scratchへの書き込みにはUEFI Simple File System / File Protocolを使用します。loopbackはGRUB内での読み取りだけに使用します。Linuxのkernel、initramfs、kernel command lineは変更しません。
 
-Alpine 3.22.3 standardの公式ISOで、展開したFAT32から変更のないEFI・kernel・initramfsを経由してLinuxのログインまで確認しました。詳しい実行結果は [検証記録](docs/validation.md)、設計調査は [design.md](docs/design.md) を参照してください。
+Alpine 3.22.3 standardの公式ISOで、展開したFAT32から変更のないEFI・kernel・initramfsを経由してLinuxのログインまで確認しました。今回の追加チェックと実ISO一覧は [互換性レポート](docs/compatibility.md)。詳しい実行結果は [検証記録](docs/validation.md)、設計調査は [design.md](docs/design.md) を参照してください。
 
 ## 開発と自動テスト
 
@@ -14,6 +14,7 @@ Debian trixie、x86_64 Linuxを想定しています。基本ツールとしてG
 make deps       # 署名検証されたDebianパッケージを .build/tools に展開（root不要）
 make build      # SHA-256固定のGRUB 2.12ソースをビルドし、独自モジュールを組み込む
 make test       # GPTイメージ生成、QEMU/OVMF実行、シリアル・ホスト側検証
+make test-compat # 展開前チェック、symlink拒否、エラー分類、長いラベル
 make test-linux # 公式Alpine ISO取得、通常接続・USB接続でLinux起動検証
 ```
 
@@ -45,7 +46,7 @@ scripts/run.sh .build/demo/disk.img --usb
 | p2 DATA | ext4、`/iso/*.iso` | 1GiB |
 | p3 SCRATCH | FAT32、ISO展開先 | 1.5GiB |
 
-DATAは `mkfs.ext4 -O ^extent,^64bit` で作成します。GRUB 2.12のext4 readerは先頭に穴のあるextentファイルでエラーになるため、従来のブロック配置を使います。ISO全体のハッシュもこの配置で検証します。サイズは `scripts/image.py` の `PARTS` とディスク容量を変更して調整できます（テストのscratchオフセットも追従が必要です）。
+DATAは `mkfs.ext4 -O ^extent,^64bit` で作成します。GRUB 2.12のext4 readerは先頭に穴のあるextentファイルでエラーになるため、従来のブロック配置を使います。ISO全体のハッシュもこの配置で検証します。容量は `--data-mib 8192 --scratch-mib 8192` のように指定できます。生成先の `partitions.json` に各パーティションのoffsetと容量を記録します。従来のホスト検証スクリプトは既定のscratch offsetを使用するため、カスタム容量ではこのmetadataに従って検証してください。
 
 ## GRUBコマンド
 
@@ -65,7 +66,7 @@ ISOの相対デバイスはGRUBの `root` です。通常は `search --label DAT
 
 scratchは `/.multigrub-scratch` の正確な内容で識別します。マーカーを持つ複数のfilesystemがある場合は書き込みを拒否します。ファイルシステムのラベルには依存しないため、ISOのVolume IDを反映した後も識別できます。
 
-`extract_iso` は入力ファイルと容量を事前検査し、scratchを清掃して展開します。FATで表現できない名前、case collision、4GiB超の単一ファイル、深さ64超、10万項目超は失敗として扱います。POSIX属性は再現しません。ファイルへのsymlinkはGRUB APIが参照先を読む場合に限り通常ファイル化されます。directory symlinkや循環リンクには対応しません。
+`extract_iso` は入力ファイルと容量を事前検査し、scratchを清掃して展開します。FATで表現できない名前、case collision、4GiB超の単一ファイル、深さ64超、10万項目超は失敗として扱います。POSIX属性は再現しません。ISO上のRock Ridge symlinkは展開前に検出し、通常ファイルへのリンクも含めて `SYMLINK_UNSUPPORTED` として拒否します。
 
 展開成功時、EFIが存在する場合にだけ `/.bootiso-cache` を最後にflushして保存します。記録にはISOパス・サイズ・利用可能な更新日時・ISO全体のSHA-256が含まれます。キャッシュ一致時は再展開を省略しますが、変更検出のためISO全体の読み取りは毎回必要です。scratchを外部から改変した場合はキャッシュを削除してください。`write_test` と `extract_file` はキャッシュを無効化します。
 
@@ -79,4 +80,4 @@ QEMUは1GiB RAMとVGAを備え、画面をTesseractで読み、QMPで標準のro
 
 AlpineのEFI内の初期設定は元のVolume ID `alpine-std 3.22.3 x86_64` を検索します。このIDはFATの11文字制限に収まらず、反映を省略するためラベル検索の警告が出ます。それでもLoadedImageのデバイスから引き継いだscratchのrootで元の設定を読み、起動できます。この結果は当該Alpine ISOの検証であり、他のディストリビューションの起動を保証しません。
 
-対象外はSecure Boot、BIOS/CSM、ARM、Windows、persistence、暗号化filesystem、network bootです。UDF readerは選択可能ですが、UDF ISOでの実証はまだ行っていません。
+対象外はSecure Boot、BIOS/CSM、ARM、Windows、persistence、暗号化filesystem、network bootです。UDF reader自体は組み込まれていますが、symlink検査が未実装のため全体展開では明示的にUNSUPPORTEDとします。

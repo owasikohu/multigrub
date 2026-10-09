@@ -6,6 +6,7 @@ source "$(dirname "$0")/env.sh"
 "$ROOT/scripts/linux-iso.sh"
 command -v tesseract >/dev/null
 original=$BUILD/linux-validation-original
+if [[ -d $original ]]; then chmod -R u+w "$original"; fi
 rm -rf "$original"
 mkdir -p "$original"
 xorriso -osirrox on -indev "$BUILD/linux/alpine-standard-3.22.3-x86_64.iso" \
